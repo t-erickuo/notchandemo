@@ -21,4 +21,4 @@ By running the script in
 python test/session/cli.py
 ```
 
-you will create a storage account. The log spew will include a "registering for notifications for \<some guid\>". By posting a message with said guid as the id, you will mark the operation as completed.
+you will create a storage account. The log spew will include a "registering for notifications for \<some guid\>". By posting a message with said guid as the id, you will mark the operation as completed. You can use the script `complete.sh` to send the push notification (it takes a single argument, which is the id to mark as completed)
