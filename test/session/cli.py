@@ -1,10 +1,9 @@
 from datetime import date, datetime
 import logging
-from dateUtil import DateUtil
 import time
 import uuid
 
-from notchandemo import GrpcDemoSession, apply_magic_to_make_faster
+from notchandemo import GrpcDemoSession, apply_magic_to_log_polling, apply_magic_to_make_faster, dateUtil
 
 import random
 import os
@@ -15,7 +14,7 @@ from azure.mgmt.storage.models import StorageAccountCreateParameters
 from azure.mgmt.compute.models import DiskCreateOption
 import azure.identity
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.CRITICAL)
 
 # try:
 #     session_id = str(uuid.uuid4())
@@ -44,11 +43,6 @@ def create_storage_account():
     return client.storage_accounts.begin_create(RESOURCE_GROUP_NAME, f'erictest{random.randint(1,1000)}', parameters=parameters)
 
 def create_virtual_machine():
-    compute_client = azure.mgmt.compute.ComputeManagementClient(
-        azure.identity.AzureCliCredential(),
-        subscription_id,
-        session=session)
-
     network_client = azure.mgmt.network.NetworkManagementClient(
         azure.identity.AzureCliCredential(),
         subscription_id)
@@ -117,11 +111,11 @@ def create_virtual_machine():
     PASSWORD = "ChangeM3N0w!"
 
     print(f"Provisioning virtual machine {VM_NAME}; this operation might take a few minutes.")
-    dateUtil = DateUtil()
-    dateUtil.record_start_time("provision VM")
+    dateUtility = dateUtil.DateUtil()
+    dateUtility.record_start_time("provision VM")
 
     # Create the VM on a Standard DS1 v2 plan with a public IP address and a default virtual network/subnet.
-    poller = compute_client.virtual_machines.begin_create_or_update(RESOURCE_GROUP_NAME, VM_NAME,
+    poller = getComputeClientWithSessionOrNot().virtual_machines.begin_create_or_update(RESOURCE_GROUP_NAME, VM_NAME,
         {
             "location": LOCATION,
             "storage_profile": {
@@ -148,9 +142,8 @@ def create_virtual_machine():
         }
     )
 
-    result = poller.result()
-    print(result)
-    dateUtil.record_end_time_and_total_time_elapsed("provisioning VM")
+    poller.result()
+    dateUtility.record_end_time_and_total_time_elapsed("provisioning VM")
 
 def attach_data_disk_to_vm():
     compute_client_with_no_session = azure.mgmt.compute.ComputeManagementClient(
@@ -188,37 +181,26 @@ def attach_data_disk_to_vm():
         }
     })
 
-    compute_client = azure.mgmt.compute.ComputeManagementClient(
-        azure.identity.AzureCliCredential(),
-        subscription_id,
-        session=session)
+    dateUtility = dateUtil.DateUtil()
+    dateUtility.record_start_time("attach Disk")
 
-    dateUtil = DateUtil()
-    dateUtil.record_start_time("attach Disk")
-
-    async_disk_attach = compute_client.virtual_machines.begin_create_or_update(
+    async_disk_attach = getComputeClientWithSessionOrNot().virtual_machines.begin_create_or_update(
         RESOURCE_GROUP_NAME,
         virtual_machine.name,
         virtual_machine
     )
 
     try:
-        result = async_disk_attach.result()
-        print(result)
+        async_disk_attach.result()
     except Exception as e:
         print(e)
     finally:
-        dateUtil.record_end_time_and_total_time_elapsed("attaching Disk")
+        dateUtility.record_end_time_and_total_time_elapsed("attaching Disk")
 
 def detach_data_disk_to_vm():
     compute_client_with_no_session = azure.mgmt.compute.ComputeManagementClient(
         azure.identity.AzureCliCredential(),
         subscription_id)
-
-    compute_client = azure.mgmt.compute.ComputeManagementClient(
-        azure.identity.AzureCliCredential(),
-        subscription_id,
-        session=session)
 
     virtual_machine = compute_client_with_no_session.virtual_machines.get(
         RESOURCE_GROUP_NAME,
@@ -234,25 +216,36 @@ def detach_data_disk_to_vm():
     # remove last disk
     data_disks.pop()
 
-    dateUtil = DateUtil()
-    dateUtil.record_start_time("detach Disk")
+    dateUtility = dateUtil.DateUtil()
+    dateUtility.record_start_time("detach Disk")
 
-    async_disk_detach = compute_client.virtual_machines.begin_create_or_update(
+    async_disk_detach = getComputeClientWithSessionOrNot().virtual_machines.begin_create_or_update(
         RESOURCE_GROUP_NAME,
         VM_NAME,
         virtual_machine
     )
 
     try:
-        result = async_disk_detach.result()
-        print(result)
+        async_disk_detach.result()
     except Exception as e:
         print(e)
     finally:
-        dateUtil.record_end_time_and_total_time_elapsed("detaching Disk")
+        dateUtility.record_end_time_and_total_time_elapsed("detaching Disk")
 
-# TODO somehow filter out the INFO logs? They are kind of clouding up the output
-# TODO what if add another mixin class that logs the polling
+def getComputeClientWithSessionOrNot():
+    compute_client = any
+    if (lrpInput == 0):
+        compute_client = azure.mgmt.compute.ComputeManagementClient(
+            azure.identity.AzureCliCredential(),
+            subscription_id,
+            session=session)
+    else:
+        # apply here so regular compute clients don't log polling as well
+        apply_magic_to_log_polling()
+        compute_client = azure.mgmt.compute.ComputeManagementClient(
+            azure.identity.AzureCliCredential(),
+            subscription_id)
+    return compute_client
 
 if __name__ == '__main__':
     try:
@@ -263,12 +256,16 @@ if __name__ == '__main__':
         print('Missing required environment variable "AZURE_SUBSCRIPTION_ID"')
         exit()
     
-    # To test without LRP, comment out the session variable, comment out apply_magic_to_make_faster, and ensure the compute client
-    # does not have session variable attached
-    session = GrpcDemoSession('lrp-rg-eastus.eastus.cloudapp.azure.com', session_id='02ae0c33-08e4-4a89-ae9e-e5f9c7fb65ff')
-    apply_magic_to_make_faster()
+    lrpInput = int(input("Choose to run with LRP[0] or without LRP[1]:\n"))
+    crudOperation = int(input("Choose one compute operation from Attach Disk[0], Detach Disk[1], Create VM[2]:\n"))
 
-    # create_virtual_machine()
-    attach_data_disk_to_vm()
-    # detach_data_disk_to_vm()
-    print("FINISHED")
+    if (lrpInput == 0):
+        session = GrpcDemoSession('lrp-rg-eastus.eastus.cloudapp.azure.com', session_id='02ae0c33-08e4-4a89-ae9e-e5f9c7fb65ff')
+        apply_magic_to_make_faster()
+
+    if (crudOperation == 0):
+        attach_data_disk_to_vm()
+    elif(crudOperation == 1):
+        detach_data_disk_to_vm()
+    elif(crudOperation == 2):
+        create_virtual_machine()

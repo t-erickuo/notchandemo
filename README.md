@@ -9,11 +9,11 @@ Instructions:
 ```sh
 python -m venv .env
 . .env/bin/activate
-python -m pip install . azure-mgmt-compute azure-mgmt-storage
+pip install -r requirements.txt
+pip install -e .
 ```
 
 - Set the environment variable `AZURE_SUBSCRIPTION_ID` to the id of the azure subscription you want to use.
-- Create resource group `johanste-testresourcegroup` in the subscription
 
 By running the script in 
 
@@ -21,4 +21,6 @@ By running the script in
 python test/session/cli.py
 ```
 
-you will create a storage account. The log spew will include a "registering for notifications for \<some guid\>". By posting a message with said guid as the id, you will mark the operation as completed. You can use the script `complete.sh` to send the push notification (it takes a single argument, which is the id to mark as completed)
+you will be prompted to select running with LRP or not and which compute CRUD operation to execute. The log spew will include a "registering for notifications for \<some guid\>". By posting a message with said guid as the id, you will mark the operation as completed. You can use the script `complete.sh` to send the push notification (it takes a single argument, which is the id to mark as completed)
+
+Note: Log level can be set to DEBUG for more information in cli.py

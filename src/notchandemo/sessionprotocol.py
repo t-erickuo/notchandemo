@@ -26,21 +26,21 @@ class SessionProtocol(abc.ABC):
         notification_id = self.extract_notification(response)
         with self._notification_lock:
             if notification_id in self._completed:
-                LOG.debug(f'{notification_id} was already completed... returning immediately!')
+                LOG.critical(f'{notification_id} was already completed... returning immediately!')
                 return
             else:
-                LOG.debug(f'Registering for notifications for {notification_id}')
+                LOG.critical(f'Registering for notifications for {notification_id}')
                 event = threading.Event()
                 self._notifications[notification_id] = event
         event.wait()
-        LOG.debug(f'{notification_id} completed!')
+        LOG.critical(f'{notification_id} completed!')
 
     def close(self):
-        LOG.debug(f'Closing notification channel {self}')
+        LOG.critical(f'Closing notification channel {self}')
         with self._notification_lock:
             while self._notifications:
                 notification_id, event = self._notifications.popitem()
-                LOG.debug(f'Completing pending notification because I am closing: {notification_id}')
+                LOG.critical(f'Completing pending notification because I am closing: {notification_id}')
                 event.set()
 
     @abc.abstractmethod
@@ -52,7 +52,7 @@ class SessionProtocol(abc.ABC):
 
     def on_completion(self, notification_id, data):
         utc_time = datetime.utcnow()
-        LOG.debug(f'Signalling {notification_id} as completed at {utc_time}')
+        LOG.critical(f'Signalling {notification_id} as completed at {utc_time}')
         with self._notification_lock:
             self._completed[notification_id] = data
             try:

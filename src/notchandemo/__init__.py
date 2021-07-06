@@ -15,6 +15,7 @@ __all__ = [
     "GrpcDemoSession",
     "make_notification_session_aware",
     "apply_magic_to_make_faster",
+    "apply_magic_to_log_polling",
 ]
 class GrpcDemoSession(sessionprotocol.SessionProtocol):
 
@@ -138,4 +139,19 @@ def apply_magic_to_make_faster():
     import azure.mgmt.compute
     azure.mgmt.compute.ComputeManagementClient = make_notification_session_aware(azure.mgmt.compute.ComputeManagementClient)
 
+class LogPollingMixin(LROBasePolling):
+    def _poll(self, *args, **kwargs):
+        print(f"Polling...")
+        retval = super(LogPollingMixin, self)._poll(*args, **kwargs)
+        return retval
+    
+    def _delay(self, *args, **kwargs):
+        print(f"Delaying for {self._timeout} seconds")
+        retval = super(LogPollingMixin, self)._delay(*args, **kwargs)
+        return retval
+
+def apply_magic_to_log_polling():
+    # Let's  inject our middle tier class. Dark, sweet magic!
+    if not LogPollingMixin in ARMPolling.__bases__:
+        ARMPolling.__bases__ = (LogPollingMixin,)
     
