@@ -28,9 +28,9 @@ logging.basicConfig(level=logging.DEBUG)
 # finally:
 #     session.close()
 
-RESOURCE_GROUP_NAME='lrp-test'
+RESOURCE_GROUP_NAME='peshaotest'
 LOCATION='southcentralusstg'
-VM_NAME='testLRP5'
+VM_NAME='peshao-17-15-42'
 DATA_DISK_NAME=f'mydatadisk-{uuid.uuid1()}'
 
 def create_storage_account():
