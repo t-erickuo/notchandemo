@@ -1,5 +1,6 @@
 import abc
 import threading
+from datetime import datetime
 
 import logging
 LOG = logging.getLogger(__name__)
@@ -50,7 +51,8 @@ class SessionProtocol(abc.ABC):
         pass
 
     def on_completion(self, notification_id, data):
-        LOG.debug(f'Signalling {notification_id} as completed!')
+        utc_time = datetime.utcnow()
+        LOG.debug(f'Signalling {notification_id} as completed at {utc_time}')
         with self._notification_lock:
             self._completed[notification_id] = data
             try:

@@ -1,0 +1,11 @@
+# virtual env directory
+.env
+
+# symlink pycache
+src/notchandemo/__pycache__
+src/notchandemo.egg-info
+
+test/session/__pycache__
+
+# environment variables
+dev.env
