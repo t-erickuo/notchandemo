@@ -5,3 +5,4 @@ azure-mgmt-storage
 azure-identity
 google-api-python-client
 grpcio
+win10toast

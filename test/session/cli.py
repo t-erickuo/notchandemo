@@ -13,6 +13,9 @@ import azure.mgmt.network
 from azure.mgmt.storage.models import StorageAccountCreateParameters
 from azure.mgmt.compute.models import DiskCreateOption
 import azure.identity
+from win10toast import ToastNotifier
+
+toast = ToastNotifier()
 
 logging.basicConfig(level=logging.CRITICAL)
 
@@ -145,7 +148,7 @@ def create_virtual_machine():
     poller.result()
     dateUtility.record_end_time_and_total_time_elapsed("provisioning VM")
 
-def attach_data_disk_to_vm():
+def attach_data_disk_to_vm(diskName):
     compute_client_with_no_session = azure.mgmt.compute.ComputeManagementClient(
         azure.identity.AzureCliCredential(),
         subscription_id)
@@ -155,35 +158,20 @@ def attach_data_disk_to_vm():
         VM_NAME
     )
 
-    # Create managed data disk
-    print('\nCreate (empty) managed Data Disk')
-    async_disk_creation = compute_client_with_no_session.disks.begin_create_or_update(
-        RESOURCE_GROUP_NAME,
-        DATA_DISK_NAME,
-        {
-            'location': LOCATION,
-            'disk_size_gb': 1,
-            'creation_data': {
-                'create_option': DiskCreateOption.empty
-            }
-        }
-    )
-    data_disk = async_disk_creation.result()
+    data_disk = compute_client_with_no_session.disks.get(RESOURCE_GROUP_NAME, diskName)
 
     # Attach data disk
     print('\nAttach Data Disk')
     virtual_machine.storage_profile.data_disks.append({
-        'lun': random.randint(0,15),
-        'name': DATA_DISK_NAME,
+        'lun': diskName,
+        'name': diskName,
         'create_option': DiskCreateOption.attach,
         'managed_disk': {
             'id': data_disk.id
         }
     })
 
-    dateUtility = dateUtil.DateUtil()
-    dateUtility.record_start_time("attach Disk")
-
+    start = time.time()
     async_disk_attach = getComputeClientWithSessionOrNot().virtual_machines.begin_create_or_update(
         RESOURCE_GROUP_NAME,
         virtual_machine.name,
@@ -192,10 +180,12 @@ def attach_data_disk_to_vm():
 
     try:
         async_disk_attach.result()
+        end = time.time()
+        attach_times.append(end - start)
+        print(f"ATTACH DISK - {end-start} s")
     except Exception as e:
-        print(e)
-    finally:
-        dateUtility.record_end_time_and_total_time_elapsed("attaching Disk")
+        toast.show_toast("Error",str(e),duration=1000)
+        raise e
 
 def detach_data_disk_to_vm():
     compute_client_with_no_session = azure.mgmt.compute.ComputeManagementClient(
@@ -208,6 +198,7 @@ def detach_data_disk_to_vm():
     )
 
     # Detach data disk
+    print('\nDetach Data Disk')
     data_disks = virtual_machine.storage_profile.data_disks
     if (len(data_disks) == 0):
         print("No disks found")
@@ -216,8 +207,7 @@ def detach_data_disk_to_vm():
     # remove last disk
     data_disks.pop()
 
-    dateUtility = dateUtil.DateUtil()
-    dateUtility.record_start_time("detach Disk")
+    start = time.time()
 
     async_disk_detach = getComputeClientWithSessionOrNot().virtual_machines.begin_create_or_update(
         RESOURCE_GROUP_NAME,
@@ -227,10 +217,13 @@ def detach_data_disk_to_vm():
 
     try:
         async_disk_detach.result()
+
+        end = time.time()
+        detatch_times.append(end - start)
+        print(f"DETACH DISK - {end-start} s")
     except Exception as e:
-        print(e)
-    finally:
-        dateUtility.record_end_time_and_total_time_elapsed("detaching Disk")
+        toast.show_toast("Error",str(e),duration=1000)
+        raise e
 
 def getComputeClientWithSessionOrNot():
     compute_client = any
@@ -247,6 +240,21 @@ def getComputeClientWithSessionOrNot():
             subscription_id)
     return compute_client
 
+def write_to_files():
+    attach_file = open(f'C:\\Users\\t-erickuo\\Documents\\Notepads\\LRPdata\\{ATTACH_FILE_NAME}', 'a') #write to file
+    detach_file = open(f'C:\\Users\\t-erickuo\\Documents\\Notepads\\LRPdata\\{DETACH_FILE_NAME}.txt', 'a') #write to file
+
+    for x in attach_times:
+        attach_file.write(f"{str(x)}\n")
+    attach_file.close()
+
+    for x in detatch_times:
+        detach_file.write(f"{str(x)}\n")
+    detach_file.close()
+
+    attach_times.clear()
+    detatch_times.clear()
+
 if __name__ == '__main__':
     try:
         # AzBlitz-Stage-Canary-Test subscription
@@ -255,17 +263,67 @@ if __name__ == '__main__':
     except KeyError:
         print('Missing required environment variable "AZURE_SUBSCRIPTION_ID"')
         exit()
-    
-    lrpInput = int(input("Choose to run with LRP[0] or without LRP[1]:\n"))
-    crudOperation = int(input("Choose one compute operation from Attach Disk[0], Detach Disk[1], Create VM[2]:\n"))
+
+    # Create 4 disks first to attach and detach
+    # compute_client_with_no_session = azure.mgmt.compute.ComputeManagementClient(
+    #     azure.identity.AzureCliCredential(),
+    #     subscription_id)
+
+    # for x in [0,1,2,3]:
+    #     async_disk_creation = compute_client_with_no_session.disks.begin_create_or_update(
+    #         RESOURCE_GROUP_NAME,
+    #         x,
+    #         {
+    #             'location': LOCATION,
+    #             'disk_size_gb': 1,
+    #             'creation_data': {
+    #                 'create_option': DiskCreateOption.empty
+    #             }
+    #         }
+    #     )
+    #     data_disk = async_disk_creation.result()
+
+    lrpInput = 1
 
     if (lrpInput == 0):
         session = GrpcDemoSession('lrp-rg-eastus.eastus.cloudapp.azure.com', session_id='02ae0c33-08e4-4a89-ae9e-e5f9c7fb65ff')
         apply_magic_to_make_faster()
+        ATTACH_FILE_NAME = "attach-LRP.txt"
+        DETACH_FILE_NAME = "detach-LRP.txt"
+    else:
+        ATTACH_FILE_NAME = "attach-WithoutLRP.txt"
+        DETACH_FILE_NAME = "detach-WithoutLRP.txt"
 
-    if (crudOperation == 0):
-        attach_data_disk_to_vm()
-    elif(crudOperation == 1):
-        detach_data_disk_to_vm()
-    elif(crudOperation == 2):
-        create_virtual_machine()
+    attach_times = []
+    detatch_times = []
+
+    NUM_OPERATIONS = 800
+    NUM_OPERATIONS_BEFORE_RECORD = 50
+    operationCount = 0
+    isAttach = True
+    numConsecutive = 0
+
+    while (operationCount != NUM_OPERATIONS):
+        # can only attach 4 disks max
+        if (numConsecutive == 4):
+            isAttach = not isAttach
+            numConsecutive = 0
+
+        if (isAttach):
+            # print(f'Attach {operationCount % 4}')
+            # attach_times.append(operationCount)
+            attach_data_disk_to_vm(operationCount % 4)
+        else:
+            # print(f'Detach {operationCount % 4}')
+            # detatch_times.append(operationCount)
+            detach_data_disk_to_vm()
+
+        if (operationCount != 0 and operationCount % NUM_OPERATIONS_BEFORE_RECORD == 0):
+            write_to_files()
+            print(f'NUM OPERATIONS SO FAR {operationCount}')
+
+        operationCount+=1
+        numConsecutive += 1
+    
+    write_to_files()
+    toast.show_toast("Finished","Finished python script",duration=10)
