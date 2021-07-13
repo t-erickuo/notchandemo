@@ -260,7 +260,7 @@ if __name__ == '__main__':
     crudOperation = int(input("Choose one compute operation from Attach Disk[0], Detach Disk[1], Create VM[2]:\n"))
 
     if (lrpInput == 0):
-        session = GrpcDemoSession('lrp-rg-eastus.eastus.cloudapp.azure.com', session_id='02ae0c33-08e4-4a89-ae9e-e5f9c7fb65ff')
+        session = GrpcDemoSession('lrp-rg-eastus.eastus.cloudapp.azure.com', subscription_id, session_id='02ae0c33-08e4-4a89-ae9e-e5f9c7fb65ff')
         apply_magic_to_make_faster()
 
     if (crudOperation == 0):
