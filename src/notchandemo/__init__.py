@@ -1,8 +1,8 @@
 import threading
 import typing
 import uuid
-
 import grpc
+import time
 
 from azure.core.polling.base_polling import LROBasePolling
 from azure.mgmt.core.polling.arm_polling import ARMPolling
@@ -15,6 +15,7 @@ __all__ = [
     "GrpcDemoSession",
     "make_notification_session_aware",
     "apply_magic_to_make_faster",
+    "apply_magic_to_log_polling",
 ]
 class GrpcDemoSession(sessionprotocol.SessionProtocol):
 
@@ -42,9 +43,10 @@ snaKGI4WXpNY5NgXCxBlfOD5kI6b1H/NAgo1ClKzHch2wNUvTLMrinYN1QmuP0at
 -----END CERTIFICATE-----
     """
 
-    def __init__(self, host, session_id):
+    def __init__(self, host, subscription_id, session_id):
         super(GrpcDemoSession, self).__init__()
         self.host = host
+        self.subscription_id = subscription_id
         self.session_id = session_id
         self.thread = threading.Thread(target=self.run, daemon=True)
         self._channel = None
@@ -57,22 +59,43 @@ snaKGI4WXpNY5NgXCxBlfOD5kI6b1H/NAgo1ClKzHch2wNUvTLMrinYN1QmuP0at
     def open(self):
         credentials = grpc.ssl_channel_credentials(GrpcDemoSession.SELF_SIGNED_CERT)
         self._channel = grpc.secure_channel(self.host, credentials=credentials)
-        self._stub = service.LightsaberServiceStub(self._channel, self.session_id)
+        self._stub = service.LightsaberServiceStub(self._channel, self.subscription_id, self.session_id)
     
     def run(self):
-        try:
-            for notification in self._stub.SubscribeSession(
-                    messages.SubscriptionRequest(sessionId=self.session_id)
-                ):
-                try:
-                    request_id = notification.id
-                    self.on_completion(request_id, notification)
-                except KeyError:
-                    pass
-        except Exception as e:
-            print(f"channel failed - {e}")
-        finally:
-            self._channel.close()
+        maxRetryCount = 20;
+        waitTimeToRetry = 1;
+        retryCount = 1;
+
+        while (True):
+            try:
+                print("\nStarting subscribe session")
+                for notification in self._stub.SubscribeSession(
+                        messages.SubscriptionRequest(sessionId=self.session_id),
+                        metadata=(
+                            ('x-ms-client-principal-claims', 'PlatformServiceAdministrator'),
+                            ('x-ms-client-principal-name', 'chanravi')
+                        )
+                    ):
+                    try:
+                        request_id = notification.id
+                        self.on_completion(request_id, notification)
+                    except KeyError:
+                        pass
+            except Exception as e:
+                if (e._state.code == grpc.StatusCode.UNAVAILABLE):
+                    if (retryCount <= maxRetryCount):
+                        print(f"\nStream is not available, going to retry in {waitTimeToRetry} seconds")
+                        time.sleep(waitTimeToRetry)
+                        retryCount+=1
+                    else:
+                        print("\nExceed maximum number of retry attempts")
+                        break
+                else:
+                    print("\nchannel failed - {e}")
+                    break
+
+        print("closing channel")
+        self._channel.close()
 
     def extract_notification(self, response, **kwargs):
         request_id = response.request.headers['x-ms-client-request-id']
@@ -119,5 +142,21 @@ def apply_magic_to_make_faster():
     import azure.mgmt.storage
     azure.mgmt.storage.StorageManagementClient = make_notification_session_aware(azure.mgmt.storage.StorageManagementClient)     
     import azure.mgmt.compute
-    azure.mgmt.compute.ComputeManagementClient = make_notification_session_aware(azure.mgmt.compute.ComputeManagementClient)     
+    azure.mgmt.compute.ComputeManagementClient = make_notification_session_aware(azure.mgmt.compute.ComputeManagementClient)
+
+class LogPollingMixin(LROBasePolling):
+    def _poll(self, *args, **kwargs):
+        print(f"Polling...")
+        retval = super(LogPollingMixin, self)._poll(*args, **kwargs)
+        return retval
+    
+    def _delay(self, *args, **kwargs):
+        print(f"Delaying for {self._timeout} seconds")
+        retval = super(LogPollingMixin, self)._delay(*args, **kwargs)
+        return retval
+
+def apply_magic_to_log_polling():
+    # Let's  inject our middle tier class. Dark, sweet magic!
+    if not LogPollingMixin in ARMPolling.__bases__:
+        ARMPolling.__bases__ = (LogPollingMixin,)
     

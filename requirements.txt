@@ -1,0 +1,7 @@
+azure-mgmt-resource
+azure-mgmt-compute
+azure-mgmt-network
+azure-mgmt-storage
+azure-identity
+google-api-python-client
+grpcio
