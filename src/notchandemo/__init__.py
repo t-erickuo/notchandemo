@@ -43,9 +43,10 @@ snaKGI4WXpNY5NgXCxBlfOD5kI6b1H/NAgo1ClKzHch2wNUvTLMrinYN1QmuP0at
 -----END CERTIFICATE-----
     """
 
-    def __init__(self, host, session_id):
+    def __init__(self, host, subscription_id, session_id):
         super(GrpcDemoSession, self).__init__()
         self.host = host
+        self.subscription_id = subscription_id
         self.session_id = session_id
         self.thread = threading.Thread(target=self.run, daemon=True)
         self._channel = None
@@ -58,7 +59,7 @@ snaKGI4WXpNY5NgXCxBlfOD5kI6b1H/NAgo1ClKzHch2wNUvTLMrinYN1QmuP0at
     def open(self):
         credentials = grpc.ssl_channel_credentials(GrpcDemoSession.SELF_SIGNED_CERT)
         self._channel = grpc.secure_channel(self.host, credentials=credentials)
-        self._stub = service.LightsaberServiceStub(self._channel, self.session_id)
+        self._stub = service.LightsaberServiceStub(self._channel, self.subscription_id, self.session_id)
     
     def run(self):
         maxRetryCount = 20;
@@ -69,7 +70,11 @@ snaKGI4WXpNY5NgXCxBlfOD5kI6b1H/NAgo1ClKzHch2wNUvTLMrinYN1QmuP0at
             try:
                 print("\nStarting subscribe session")
                 for notification in self._stub.SubscribeSession(
-                        messages.SubscriptionRequest(sessionId=self.session_id)
+                        messages.SubscriptionRequest(sessionId=self.session_id),
+                        metadata=(
+                            ('x-ms-client-principal-claims', 'PlatformServiceAdministrator'),
+                            ('x-ms-client-principal-name', 'chanravi')
+                        )
                     ):
                     try:
                         request_id = notification.id

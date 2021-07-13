@@ -286,7 +286,7 @@ if __name__ == '__main__':
     lrpInput = 1
 
     if (lrpInput == 0):
-        session = GrpcDemoSession('lrp-rg-eastus.eastus.cloudapp.azure.com', session_id='02ae0c33-08e4-4a89-ae9e-e5f9c7fb65ff')
+        session = GrpcDemoSession('lrp-rg-eastus.eastus.cloudapp.azure.com', subscription_id, session_id='02ae0c33-08e4-4a89-ae9e-e5f9c7fb65ff')
         apply_magic_to_make_faster()
         ATTACH_FILE_NAME = "attach-LRP.txt"
         DETACH_FILE_NAME = "detach-LRP.txt"
