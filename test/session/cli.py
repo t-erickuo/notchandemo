@@ -2,6 +2,8 @@ from datetime import date, datetime
 import logging
 import time
 import uuid
+import sys
+from pynput.keyboard import Key, Listener
 
 from notchandemo import GrpcDemoSession, apply_magic_to_log_polling, apply_magic_to_make_faster, dateUtil
 
@@ -13,11 +15,8 @@ import azure.mgmt.network
 from azure.mgmt.storage.models import StorageAccountCreateParameters
 from azure.mgmt.compute.models import DiskCreateOption
 import azure.identity
-from win10toast import ToastNotifier
 
-toast = ToastNotifier()
-
-logging.basicConfig(level=logging.CRITICAL)
+# logging.basicConfig(level=logging.CRITICAL)
 
 # try:
 #     session_id = str(uuid.uuid4())
@@ -32,7 +31,6 @@ logging.basicConfig(level=logging.CRITICAL)
 
 RESOURCE_GROUP_NAME='peshaotest'
 LOCATION='southcentralusstg'
-VM_NAME='peshao-17-15-42'
 DATA_DISK_NAME=f'mydatadisk-{uuid.uuid1()}'
 
 def create_storage_account():
@@ -161,7 +159,6 @@ def attach_data_disk_to_vm(diskName):
     data_disk = compute_client_with_no_session.disks.get(RESOURCE_GROUP_NAME, diskName)
 
     # Attach data disk
-    print('\nAttach Data Disk')
     virtual_machine.storage_profile.data_disks.append({
         'lun': diskName,
         'name': diskName,
@@ -171,7 +168,15 @@ def attach_data_disk_to_vm(diskName):
         }
     })
 
-    start = time.time()
+    animateThread.stop()
+    animateThread.join()
+    print()
+    print(f"Starting to attach disk {lrpPrefix}...")
+    start_at_same_time()
+    thread = ElapsedTimeThread()
+    thread.start()
+    # start = time.time()
+
     async_disk_attach = getComputeClientWithSessionOrNot().virtual_machines.begin_create_or_update(
         RESOURCE_GROUP_NAME,
         virtual_machine.name,
@@ -180,14 +185,15 @@ def attach_data_disk_to_vm(diskName):
 
     try:
         async_disk_attach.result()
-        end = time.time()
-        attach_times.append(end - start)
-        print(f"ATTACH DISK - {end-start} s")
+        thread.stop()
+        thread.join()
+        # end = time.time()
+        # print(end-start)
+        print() # empty print() to output a newline
     except Exception as e:
-        toast.show_toast("Error",str(e),duration=1000)
         raise e
 
-def detach_data_disk_to_vm():
+def detach_data_disk_to_vm(diskName):
     compute_client_with_no_session = azure.mgmt.compute.ComputeManagementClient(
         azure.identity.AzureCliCredential(),
         subscription_id)
@@ -198,17 +204,21 @@ def detach_data_disk_to_vm():
     )
 
     # Detach data disk
-    print('\nDetach Data Disk')
     data_disks = virtual_machine.storage_profile.data_disks
     if (len(data_disks) == 0):
         print("No disks found")
         return
 
-    # remove last disk
-    data_disks.pop()
+    virtual_machine.storage_profile.data_disks = [disk for disk in data_disks if disk.name != diskName]
 
-    start = time.time()
-
+    animateThread.stop()
+    animateThread.join()
+    print()
+    print(f"Starting to detach disk {lrpPrefix}...")
+    # start = time.time()
+    start_at_same_time()
+    thread = ElapsedTimeThread()
+    thread.start()
     async_disk_detach = getComputeClientWithSessionOrNot().virtual_machines.begin_create_or_update(
         RESOURCE_GROUP_NAME,
         VM_NAME,
@@ -217,12 +227,12 @@ def detach_data_disk_to_vm():
 
     try:
         async_disk_detach.result()
-
-        end = time.time()
-        detatch_times.append(end - start)
-        print(f"DETACH DISK - {end-start} s")
+        thread.stop()
+        thread.join()
+        # end = time.time()
+        # print(end-start)
+        print() # empty print() to output a newline
     except Exception as e:
-        toast.show_toast("Error",str(e),duration=1000)
         raise e
 
 def getComputeClientWithSessionOrNot():
@@ -234,26 +244,84 @@ def getComputeClientWithSessionOrNot():
             session=session)
     else:
         # apply here so regular compute clients don't log polling as well
-        apply_magic_to_log_polling()
+        # apply_magic_to_log_polling()
         compute_client = azure.mgmt.compute.ComputeManagementClient(
             azure.identity.AzureCliCredential(),
             subscription_id)
     return compute_client
 
-def write_to_files():
-    attach_file = open(f'C:\\Users\\t-erickuo\\Documents\\Notepads\\LRPdata\\{ATTACH_FILE_NAME}', 'a') #write to file
-    detach_file = open(f'C:\\Users\\t-erickuo\\Documents\\Notepads\\LRPdata\\{DETACH_FILE_NAME}.txt', 'a') #write to file
+import threading
+class ElapsedTimeThread(threading.Thread):
+    """"Stoppable thread that prints the time elapsed"""
+    def __init__(self):
+        super(ElapsedTimeThread, self).__init__()
+        self._stop_event = threading.Event()
+        self.daemon = True
 
-    for x in attach_times:
-        attach_file.write(f"{str(x)}\n")
-    attach_file.close()
+    def stop(self):
+        self._stop_event.set()
+        print("\rFinished in {:.3f} seconds   ".format(time.time()-self.thread_start), end="")
 
-    for x in detatch_times:
-        detach_file.write(f"{str(x)}\n")
-    detach_file.close()
+    def stopped(self):
+        return self._stop_event.is_set()
 
-    attach_times.clear()
-    detatch_times.clear()
+    def run(self):
+        self.thread_start = time.time()
+        while not self.stopped():
+            print("\rElapsed Time {:.3f} seconds".format(time.time()-self.thread_start), end="")
+            time.sleep(0.01)
+            #include a delay here so the thread doesn't uselessly thrash the CPU
+
+import itertools
+class AnimateThread(threading.Thread):
+    """"Stoppable thread that prints the time elapsed"""
+    def __init__(self, msg):
+        super(AnimateThread, self).__init__()
+        self._stop_event = threading.Event()
+        self.daemon = True
+        self.msg = msg
+
+    def stop(self):
+        self._stop_event.set()
+        print("\r                                 ", end="")
+
+    def stopped(self):
+        return self._stop_event.is_set()
+
+    def run(self):
+        self.thread_start = time.time()
+        for c in itertools.cycle(['|', '/', '-', '\\']):
+            if (self.stopped()):
+                break
+            print(f'\r{self.msg} ' + c, end="")
+            time.sleep(0.1)
+            #include a delay here so the thread doesn't uselessly thrash the CPU
+
+def start_at_same_time():
+    # # time based approach to synchronize terminal windows
+    # t = datetime.now()
+    # print(t)    
+    # if (t.second % 10 <= 5):
+    #     secondToStart = math.ceil(int(math.ceil(t.second / 10.0)) * 10)
+    # else:
+    #     secondToStart = (math.ceil(int(math.ceil(t.second / 10.0)) * 10) + 10)
+    # dateToSleepUnitl = (t.replace(second=0, microsecond=0, minute=t.minute, hour=t.hour) + timedelta(seconds=secondToStart))
+    
+    # print(dateToSleepUnitl)
+    # print(f"sleeping for {(dateToSleepUnitl - t).total_seconds()}")
+    # time.sleep((dateToSleepUnitl-t).total_seconds())
+    # print("start!")
+
+    # key board listener approach to synchronize terminal windows
+    def on_press(key):
+        if (key == Key.esc):
+            # Stop listener
+            return False
+
+    # Collect events until released
+    with Listener(
+            on_press=on_press) as listener:
+        listener.join()
 
 if __name__ == '__main__':
     try:
@@ -283,47 +351,26 @@ if __name__ == '__main__':
     #     )
     #     data_disk = async_disk_creation.result()
 
-    lrpInput = 1
+    # provide arguments to specify LRP or not, and which disk to attach (disk names are 0,1,2,3)
+    lrpInput = 0 if sys.argv[1]=="lrp" else 1
+    lrpPrefix = "with LRP" if sys.argv[1]=="lrp" else "without LRP"
+    crudOperation = 0 if sys.argv[2]=="attach" else 1
+    diskName = sys.argv[3]
 
     if (lrpInput == 0):
         session = GrpcDemoSession('lrp-rg-eastus.eastus.cloudapp.azure.com', subscription_id, session_id='02ae0c33-08e4-4a89-ae9e-e5f9c7fb65ff')
         apply_magic_to_make_faster()
-        ATTACH_FILE_NAME = "attach-LRP.txt"
-        DETACH_FILE_NAME = "detach-LRP.txt"
+        VM_NAME='peshao-17-15-42'
     else:
-        ATTACH_FILE_NAME = "attach-WithoutLRP.txt"
-        DETACH_FILE_NAME = "detach-WithoutLRP.txt"
+        # Use a different VM to be able to attach/detach at the same time, otherwise will get an error
+        print()
+        VM_NAME='peshao-17-15-41'
 
-    attach_times = []
-    detatch_times = []
-
-    NUM_OPERATIONS = 800
-    NUM_OPERATIONS_BEFORE_RECORD = 50
-    operationCount = 0
-    isAttach = True
-    numConsecutive = 0
-
-    while (operationCount != NUM_OPERATIONS):
-        # can only attach 4 disks max
-        if (numConsecutive == 4):
-            isAttach = not isAttach
-            numConsecutive = 0
-
-        if (isAttach):
-            # print(f'Attach {operationCount % 4}')
-            # attach_times.append(operationCount)
-            attach_data_disk_to_vm(operationCount % 4)
-        else:
-            # print(f'Detach {operationCount % 4}')
-            # detatch_times.append(operationCount)
-            detach_data_disk_to_vm()
-
-        if (operationCount != 0 and operationCount % NUM_OPERATIONS_BEFORE_RECORD == 0):
-            write_to_files()
-            print(f'NUM OPERATIONS SO FAR {operationCount}')
-
-        operationCount+=1
-        numConsecutive += 1
-    
-    write_to_files()
-    toast.show_toast("Finished","Finished python script",duration=10)
+    if (crudOperation == 0):
+        animateThread = AnimateThread("Preparing to attach disk")
+        animateThread.start()
+        attach_data_disk_to_vm(diskName)
+    elif(crudOperation == 1):
+        animateThread = AnimateThread("Preparing to detach disk")
+        animateThread.start()
+        detach_data_disk_to_vm(diskName)

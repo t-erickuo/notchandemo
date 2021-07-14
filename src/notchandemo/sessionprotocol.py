@@ -26,14 +26,14 @@ class SessionProtocol(abc.ABC):
         notification_id = self.extract_notification(response)
         with self._notification_lock:
             if notification_id in self._completed:
-                LOG.critical(f'{notification_id} was already completed... returning immediately!')
+                # LOG.critical(f'{notification_id} was already completed... returning immediately!')
                 return
             else:
-                LOG.critical(f'Registering for notifications for {notification_id}')
+                # LOG.critical(f'Registering for notifications for {notification_id}')
                 event = threading.Event()
                 self._notifications[notification_id] = event
         event.wait()
-        LOG.critical(f'{notification_id} completed!')
+        # LOG.critical(f'{notification_id} completed!')
 
     def close(self):
         LOG.critical(f'Closing notification channel {self}')
@@ -51,8 +51,8 @@ class SessionProtocol(abc.ABC):
         pass
 
     def on_completion(self, notification_id, data):
-        utc_time = datetime.utcnow()
-        LOG.critical(f'Signalling {notification_id} as completed at {utc_time}')
+        # utc_time = datetime.utcnow()
+        # LOG.critical(f'Signalling {notification_id} as completed at {utc_time}')
         with self._notification_lock:
             self._completed[notification_id] = data
             try:

@@ -68,7 +68,7 @@ snaKGI4WXpNY5NgXCxBlfOD5kI6b1H/NAgo1ClKzHch2wNUvTLMrinYN1QmuP0at
 
         while (True):
             try:
-                print("\nStarting subscribe session")
+                # print("\nStarting subscribe session")
                 for notification in self._stub.SubscribeSession(
                         messages.SubscriptionRequest(sessionId=self.session_id),
                         metadata=(
@@ -84,17 +84,17 @@ snaKGI4WXpNY5NgXCxBlfOD5kI6b1H/NAgo1ClKzHch2wNUvTLMrinYN1QmuP0at
             except Exception as e:
                 if (e._state.code == grpc.StatusCode.UNAVAILABLE):
                     if (retryCount <= maxRetryCount):
-                        print(f"\nStream is not available, going to retry in {waitTimeToRetry} seconds")
+                        # print(f"\nStream is not available, going to retry in {waitTimeToRetry} seconds")
                         time.sleep(waitTimeToRetry)
                         retryCount+=1
                     else:
-                        print("\nExceed maximum number of retry attempts")
+                        # print("\nExceed maximum number of retry attempts")
                         break
                 else:
-                    print("\nchannel failed - {e}")
+                    # print("\nchannel failed - {e}")
                     break
 
-        print("closing channel")
+        # print("closing channel")
         self._channel.close()
 
     def extract_notification(self, response, **kwargs):

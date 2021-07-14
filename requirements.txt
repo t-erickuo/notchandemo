@@ -6,3 +6,4 @@ azure-identity
 google-api-python-client
 grpcio
 win10toast
+pynut
