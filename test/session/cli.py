@@ -363,7 +363,6 @@ if __name__ == '__main__':
         VM_NAME='peshao-17-15-42'
     else:
         # Use a different VM to be able to attach/detach at the same time, otherwise will get an error
-        print()
         VM_NAME='peshao-17-15-41'
 
     if (crudOperation == 0):
