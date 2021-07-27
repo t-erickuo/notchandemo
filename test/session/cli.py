@@ -337,7 +337,7 @@ if __name__ == '__main__':
     #     azure.identity.AzureCliCredential(),
     #     subscription_id)
 
-    # for x in [0,1,2,3]:
+    # for x in [4,5,6,7]:
     #     async_disk_creation = compute_client_with_no_session.disks.begin_create_or_update(
     #         RESOURCE_GROUP_NAME,
     #         x,
@@ -360,10 +360,10 @@ if __name__ == '__main__':
     if (lrpInput == 0):
         session = GrpcDemoSession('lrp-rg-eastus.eastus.cloudapp.azure.com', subscription_id, session_id='02ae0c33-08e4-4a89-ae9e-e5f9c7fb65ff')
         apply_magic_to_make_faster()
-        VM_NAME='peshao-17-15-42'
+        VM_NAME='peshao-17-15-48'
     else:
         # Use a different VM to be able to attach/detach at the same time, otherwise will get an error
-        VM_NAME='peshao-17-15-41'
+        VM_NAME='peshao-17-15-47'
 
     if (crudOperation == 0):
         animateThread = AnimateThread("Preparing to attach disk")
